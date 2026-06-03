@@ -3,6 +3,7 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $BuildDir = Join-Path $ProjectRoot "build"
 $SpecDir = Join-Path $BuildDir "spec"
+$IconPath = Join-Path $ProjectRoot "assets\breadcrumbs.ico"
 
 python -m PyInstaller `
   --noconfirm `
@@ -10,6 +11,7 @@ python -m PyInstaller `
   --onefile `
   --windowed `
   --name Breadcrumbs `
+  --icon $IconPath `
   --distpath $ProjectRoot `
   --workpath $BuildDir `
   --specpath $SpecDir `
