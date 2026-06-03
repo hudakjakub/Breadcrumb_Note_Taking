@@ -1,6 +1,6 @@
 # Breadcrumbs
 
-A lightweight Windows tray app for quickly capturing daily work notes to plain UTF-8 text files.
+A lightweight Windows app for quickly capturing daily work notes to plain UTF-8 text files.
 
 ## Run
 
@@ -21,7 +21,9 @@ Creates `Breadcrumbs.exe` in the project root.
 
 Notes are saved in `notes/` as `YYYY-MM-DD CW<week>.<weekday>.txt`.
 
+New note files start with the text from `prompt.txt`.
+
 Shortcuts:
 
 - `Ctrl+Enter`: save note
-- `Esc`: hide popup
+- `Esc`: close app

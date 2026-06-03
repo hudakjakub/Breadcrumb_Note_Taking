@@ -1,6 +1,5 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from datetime import datetime
@@ -8,7 +7,6 @@ from pathlib import Path
 
 from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, QRect, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
-    QAction,
     QColor,
     QCursor,
     QFont,
@@ -31,10 +29,8 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QMenu,
     QMessageBox,
     QSizePolicy,
-    QSystemTrayIcon,
     QTextEdit,
     QToolTip,
     QVBoxLayout,
@@ -67,6 +63,7 @@ def app_dir() -> Path:
 
 APP_DIR = app_dir()
 NOTES_DIR = APP_DIR / "notes"
+PROMPT_FILE = APP_DIR / "prompt.txt"
 
 
 def week_stamp(value: datetime) -> str:
@@ -87,44 +84,9 @@ def ensure_note_file(path: Path) -> None:
     date_part = path.stem.split(" ", 1)[0]
     week_part = path.stem.split(" ", 1)[1] if " " in path.stem else ""
     title = f"{date_part} {week_part}".strip()
-    path.write_text(f"# Work Notes - {title}\n\n## Notes\n\n", encoding="utf-8")
-
-
-def startup_folder() -> Path:
-    appdata = os.environ.get("APPDATA")
-    if not appdata:
-        raise RuntimeError("APPDATA is not set; cannot locate the Windows Startup folder.")
-    return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
-
-
-def startup_file() -> Path:
-    return startup_folder() / "Breadcrumbs Notes.bat"
-
-
-def startup_launcher_content() -> str:
-    if getattr(sys, "frozen", False):
-        executable = Path(sys.executable).resolve()
-        command = f'start "" "{executable}"'
-    else:
-        pythonw = Path(sys.executable).with_name("pythonw.exe")
-        executable = pythonw if pythonw.exists() else Path(sys.executable).resolve()
-        script = Path(__file__).resolve()
-        command = f'start "" "{executable}" "{script}"'
-
-    return f'@echo off\ncd /d "{APP_DIR}"\n{command}\n'
-
-
-def is_startup_enabled() -> bool:
-    return startup_file().exists()
-
-
-def set_startup_enabled(enabled: bool) -> None:
-    path = startup_file()
-    if enabled:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(startup_launcher_content(), encoding="utf-8")
-    elif path.exists():
-        path.unlink()
+    prompt = PROMPT_FILE.read_text(encoding="utf-8").strip() if PROMPT_FILE.exists() else ""
+    prompt_block = f"{prompt}\n\n" if prompt else ""
+    path.write_text(f"{prompt_block}# Work Notes - {title}\n\n## Notes\n\n", encoding="utf-8")
 
 
 def create_app_icon(size: int = 64) -> QIcon:
@@ -228,7 +190,7 @@ class HelpIcon(QLabel):
     def enterEvent(self, event) -> None:
         QToolTip.showText(
             self.mapToGlobal(QPoint(-142, self.height() + 4)),
-            "Ctrl+Enter  save note\nEsc  hide popup",
+            "Ctrl+Enter  save note\nEsc  close app",
             self,
         )
         super().enterEvent(event)
@@ -309,7 +271,7 @@ class NotePopup(QWidget):
         self.setWindowTitle(APP_NAME)
         self.setFixedSize(420, 260)
         self.setWindowFlags(
-            Qt.WindowType.Tool
+            Qt.WindowType.Window
             | Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
         )
@@ -367,7 +329,7 @@ class NotePopup(QWidget):
 
         help_label = HelpIcon()
         close_label = CloseLabel()
-        close_label.clicked.connect(self.hide)
+        close_label.clicked.connect(self.close)
 
         title_layout.addWidget(brand)
         title_layout.addStretch(1)
@@ -459,7 +421,7 @@ class NotePopup(QWidget):
 
         hide_shortcut = QShortcut(QKeySequence("Esc"), self)
         hide_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-        hide_shortcut.activated.connect(self.hide)
+        hide_shortcut.activated.connect(self.close)
 
     def resizeEvent(self, event) -> None:
         path = QPainterPath()
@@ -654,131 +616,16 @@ class NotePopup(QWidget):
         except OSError as error:
             QMessageBox.critical(self, "Could not open today's file", str(error))
 
-    def closeEvent(self, event) -> None:
-        event.ignore()
-        self.hide()
-
-
-class TrayApp:
-    def __init__(self, app: QApplication) -> None:
-        self.app = app
-        self.icon = create_app_icon()
-        self.popup = NotePopup()
-        self.popup.setWindowIcon(self.icon)
-
-        self.tray = QSystemTrayIcon(self.icon, self.app)
-        self.tray.setToolTip(APP_NAME)
-        self.tray.activated.connect(self.on_tray_activated)
-
-        self.tray_menu = QMenu()
-        self.tray_menu.setStyleSheet(self.menu_stylesheet())
-        self.add_note_action = QAction("Add note", self.tray_menu)
-        self.open_today_action = QAction("Open today's file", self.tray_menu)
-        self.open_folder_action = QAction("Open notes folder", self.tray_menu)
-        self.startup_action = QAction("Start with Windows", self.tray_menu)
-        self.quit_action = QAction("Quit", self.tray_menu)
-
-        self.actions = [
-            self.add_note_action,
-            self.open_today_action,
-            self.open_folder_action,
-            self.startup_action,
-            self.quit_action,
-        ]
-
-        self.add_note_action.triggered.connect(self.popup.show_popup)
-        self.open_today_action.triggered.connect(self.open_today_file)
-        self.open_folder_action.triggered.connect(self.open_notes_folder)
-        self.startup_action.triggered.connect(self.toggle_startup)
-        self.quit_action.triggered.connect(self.quit)
-
-        self.tray_menu.addAction(self.add_note_action)
-        self.tray_menu.addAction(self.open_today_action)
-        self.tray_menu.addAction(self.open_folder_action)
-        self.tray_menu.addSeparator()
-        self.tray_menu.addAction(self.startup_action)
-        self.tray_menu.addSeparator()
-        self.tray_menu.addAction(self.quit_action)
-
-        self.tray.setContextMenu(self.tray_menu)
-        self.refresh_startup_action()
-        self.tray.show()
-
-    def menu_stylesheet(self) -> str:
-        return f"""
-            QMenu {{
-                color: {INK};
-                background: {FIELD};
-                border: 1px solid #d6c8b5;
-                border-radius: 8px;
-                padding: 6px;
-                font-family: "Segoe UI";
-                font-size: 12px;
-            }}
-
-            QMenu::item {{
-                min-width: 176px;
-                min-height: 25px;
-                padding: 4px 12px 4px 10px;
-                border-radius: 5px;
-            }}
-
-            QMenu::item:selected {{
-                color: #6a5740;
-                background: #fffaf1;
-            }}
-
-            QMenu::separator {{
-                height: 1px;
-                background: {EDGE};
-                margin: 5px 7px;
-            }}
-        """
-
-    def on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
-        if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
-            self.popup.show_popup()
-
-    def open_today_file(self) -> None:
-        self.popup.open_today_file()
-
-    def open_notes_folder(self) -> None:
-        try:
-            NOTES_DIR.mkdir(parents=True, exist_ok=True)
-            os.startfile(NOTES_DIR)
-        except OSError as error:
-            QMessageBox.critical(self.popup, "Could not open notes folder", str(error))
-
-    def refresh_startup_action(self) -> None:
-        enabled = is_startup_enabled()
-        self.startup_action.setText("Start with Windows\t✓" if enabled else "Start with Windows")
-
-    def toggle_startup(self) -> None:
-        try:
-            set_startup_enabled(not is_startup_enabled())
-        except OSError as error:
-            QMessageBox.critical(self.popup, "Could not update Windows startup", str(error))
-        except RuntimeError as error:
-            QMessageBox.critical(self.popup, "Could not update Windows startup", str(error))
-        finally:
-            self.refresh_startup_action()
-
-    def quit(self) -> None:
-        self.tray.hide()
-        self.app.quit()
-
 
 def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
-    app.setQuitOnLastWindowClosed(False)
+    app.setQuitOnLastWindowClosed(True)
 
-    if not QSystemTrayIcon.isSystemTrayAvailable():
-        QMessageBox.critical(None, APP_NAME, "The system tray is not available.")
-        return 1
-
-    tray_app = TrayApp(app)
-    app.tray_app = tray_app
+    window = NotePopup()
+    window.setWindowIcon(create_app_icon())
+    window.show_popup()
+    app.window = window
     return app.exec()
 
 
