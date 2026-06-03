@@ -146,10 +146,11 @@ class DragTitleBar(QFrame):
 
 
 class FileLinkLabel(ClickableLabel):
-    def __init__(self) -> None:
+    def __init__(self, min_width: int = 170, alignment: Qt.AlignmentFlag = Qt.AlignmentFlag.AlignRight) -> None:
         super().__init__()
+        self._alignment = alignment
         self.setMouseTracking(True)
-        self.setMinimumWidth(170)
+        self.setMinimumWidth(min_width)
         self.setFixedHeight(22)
 
     def paintEvent(self, event) -> None:
@@ -168,7 +169,7 @@ class FileLinkLabel(ClickableLabel):
         metrics = QFontMetrics(font)
         text_rect = QRect(0, 0, self.width(), self.height())
         text = metrics.elidedText(self.text().strip(), Qt.TextElideMode.ElideLeft, text_rect.width())
-        painter.drawText(text_rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text)
+        painter.drawText(text_rect, self._alignment | Qt.AlignmentFlag.AlignVCenter, text)
 
     def enterEvent(self, event) -> None:
         self.update()
@@ -307,22 +308,22 @@ class NotePopup(QWidget):
         title.setObjectName("title")
         brand_layout.addWidget(title)
 
-        self.saved_label = QLabel("Saved")
-        self.saved_label.setObjectName("savedFeedback")
-        self.saved_label.setFixedWidth(46)
-        self.saved_label.hide()
-        self.saved_effect = QGraphicsOpacityEffect(self.saved_label)
-        self.saved_effect.setOpacity(0.0)
-        self.saved_label.setGraphicsEffect(self.saved_effect)
-        self.saved_animation = QPropertyAnimation(self.saved_effect, b"opacity", self)
-        self.saved_animation.setDuration(1050)
-        self.saved_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self.saved_animation.setKeyValueAt(0.0, 0.0)
-        self.saved_animation.setKeyValueAt(0.18, 1.0)
-        self.saved_animation.setKeyValueAt(0.68, 1.0)
-        self.saved_animation.setKeyValueAt(1.0, 0.0)
-        self.saved_animation.finished.connect(self.saved_label.hide)
-        brand_layout.addWidget(self.saved_label)
+        self.status_label = QLabel("Saved")
+        self.status_label.setObjectName("statusFeedback")
+        self.status_label.setFixedWidth(50)
+        self.status_label.hide()
+        self.status_effect = QGraphicsOpacityEffect(self.status_label)
+        self.status_effect.setOpacity(0.0)
+        self.status_label.setGraphicsEffect(self.status_effect)
+        self.status_animation = QPropertyAnimation(self.status_effect, b"opacity", self)
+        self.status_animation.setDuration(1050)
+        self.status_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.status_animation.setKeyValueAt(0.0, 0.0)
+        self.status_animation.setKeyValueAt(0.18, 1.0)
+        self.status_animation.setKeyValueAt(0.68, 1.0)
+        self.status_animation.setKeyValueAt(1.0, 0.0)
+        self.status_animation.finished.connect(self.status_label.hide)
+        brand_layout.addWidget(self.status_label)
 
         self.clock_label = QLabel()
         self.clock_label.setObjectName("clock")
@@ -372,14 +373,15 @@ class NotePopup(QWidget):
         meta.setContentsMargins(0, 0, 0, 0)
         meta.setSpacing(8)
 
-        append_label = QLabel("Appending to:")
-        append_label.setObjectName("metaLabel")
+        copy_button = FileLinkLabel(min_width=74, alignment=Qt.AlignmentFlag.AlignLeft)
+        copy_button.setText("Copy today")
+        copy_button.clicked.connect(self.copy_today_file)
         self.file_label = FileLinkLabel()
         self.file_label.setObjectName("fileLink")
         self.file_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self.file_label.clicked.connect(self.open_today_file)
 
-        meta.addWidget(append_label)
+        meta.addWidget(copy_button)
         meta.addStretch(1)
         meta.addWidget(self.file_label)
 
@@ -499,7 +501,7 @@ class NotePopup(QWidget):
                 font-weight: 650;
             }}
 
-            QLabel#savedFeedback {{
+            QLabel#statusFeedback {{
                 color: #65805a;
                 font-size: 11px;
                 font-weight: 700;
@@ -587,20 +589,32 @@ class NotePopup(QWidget):
 
         self.note_edit.clear()
         self.note_edit.setFocus(Qt.FocusReason.ShortcutFocusReason)
-        self.play_saved_feedback()
+        self.play_status_feedback("Saved")
         self.saved.emit()
 
-    def play_saved_feedback(self) -> None:
-        self.saved_animation.stop()
-        self.saved_effect.setOpacity(0.0)
-        self.saved_label.show()
-        self.saved_animation.start()
+    def play_status_feedback(self, text: str) -> None:
+        self.status_animation.stop()
+        self.status_label.setText(text)
+        self.status_effect.setOpacity(0.0)
+        self.status_label.show()
+        self.status_animation.start()
 
         self.note_edit.setProperty("savedPulse", True)
         self.note_edit.style().unpolish(self.note_edit)
         self.note_edit.style().polish(self.note_edit)
         self.note_edit.update()
         QTimer.singleShot(520, self.clear_saved_pulse)
+
+    def copy_today_file(self) -> None:
+        try:
+            path = today_note_path()
+            ensure_note_file(path)
+            QApplication.clipboard().setText(path.read_text(encoding="utf-8"))
+        except OSError as error:
+            QMessageBox.critical(self, "Could not copy today's file", str(error))
+            return
+
+        self.play_status_feedback("Copied")
 
     def clear_saved_pulse(self) -> None:
         self.note_edit.setProperty("savedPulse", False)

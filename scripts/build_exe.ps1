@@ -8,7 +8,7 @@ $IconPath = Join-Path $ProjectRoot "assets\breadcrumbs.ico"
 python -m PyInstaller `
   --noconfirm `
   --clean `
-  --onefile `
+  --onedir `
   --windowed `
   --name Breadcrumbs `
   --icon $IconPath `
@@ -18,4 +18,4 @@ python -m PyInstaller `
   (Join-Path $ProjectRoot "app.py")
 
 Write-Host ""
-Write-Host "Built $ProjectRoot\Breadcrumbs.exe"
+Write-Host "Built $ProjectRoot\Breadcrumbs\Breadcrumbs.exe"

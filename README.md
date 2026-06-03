@@ -23,6 +23,8 @@ Notes are saved in `notes/` as `YYYY-MM-DD CW<week>.<weekday>.txt`.
 
 New note files start with the text from `prompt.txt`.
 
+Use `Copy today` to copy the full contents of today's note file.
+
 Shortcuts:
 
 - `Ctrl+Enter`: save note
