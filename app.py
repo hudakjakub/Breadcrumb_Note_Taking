@@ -635,9 +635,11 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setQuitOnLastWindowClosed(True)
+    icon = create_app_icon()
+    app.setWindowIcon(icon)
 
     window = NotePopup()
-    window.setWindowIcon(create_app_icon())
+    window.setWindowIcon(icon)
     window.show_popup()
     app.window = window
     return app.exec()
